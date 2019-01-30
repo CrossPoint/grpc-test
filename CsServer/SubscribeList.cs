@@ -50,7 +50,18 @@ namespace CsServer
             {
                 // Don't await here, because we only need the lock during the enumeration of
                 // the subscribe list that is done during the "Task.WhenAll" call.
-                return Task.WhenAll(_subscribeList.Select(ssw => ssw.WriteAsync(eventData)));
+                return Task.WhenAll(_subscribeList.Select(async ssw =>
+                {
+                    try
+                    {
+                        await ssw.WriteAsync(eventData).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // TODO: CHeck if we can add some decent logging here
+                        // Ignore
+                    }
+                }));
             }
             finally
             {

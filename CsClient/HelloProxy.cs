@@ -10,23 +10,18 @@ namespace CsClient
     {
         private static readonly Empty Empty = new Empty();
 
-        private class CancelOnDispose : IDisposable
-        {
-            private readonly CancellationTokenSource _cts = new CancellationTokenSource();
-
-            public CancellationToken CancellationToken => _cts.Token;
-
-            public void Dispose()
-            {
-                _cts.Cancel();
-            }
-        }
-
         private readonly Greeter.GreeterClient _client;
+        private readonly GrpcEvent<HelloEvent> _onHello = new GrpcEvent<HelloEvent>();
 
         public HelloProxy(Channel channel)
         {
             _client = new Greeter.GreeterClient(channel);
+        }
+
+        public event EventHandler<GrpcEvent<HelloEvent>.Args> OnHello
+        {
+            add => _onHello.Add(value, ct => _client.Subscribe(Empty, cancellationToken: ct));
+            remove => _onHello.Remove(value);
         }
 
         public async Task<string> SayHelloAsync(string name, CancellationToken cancellationToken = default)
@@ -37,43 +32,9 @@ namespace CsClient
         }
 
         public async Task StartAsync(CancellationToken cancellationToken = default)
-        {
-            await _client.StartAsync(Empty, cancellationToken: cancellationToken);
-        }
+            => await _client.StartAsync(Empty, cancellationToken: cancellationToken);
 
         public async Task StopAsync(CancellationToken cancellationToken = default)
-        {
-            await _client.StopAsync(Empty, cancellationToken: cancellationToken);
-        }
-
-        public AsyncServerStreamingCall<HelloEvent> Subscribe(CancellationToken cancellationToken = default)
-        {
-            return _client.Subscribe(Empty, cancellationToken: cancellationToken);
-        }
-
-        public IDisposable Subscribe(Func<HelloEvent, Task> callback)
-        {
-            var disposable = new CancelOnDispose();
-            var reply = Subscribe(disposable.CancellationToken);
-            PushStreamItems(reply.ResponseStream, callback, disposable.CancellationToken);
-            return disposable;
-        }
-
-        protected async void PushStreamItems<T>(IAsyncStreamReader<T> stream, Func<T, Task> func, CancellationToken cancellationToken) where T : class
-        {
-            try
-            {
-                while (await stream.MoveNext(cancellationToken).ConfigureAwait(false))
-                    await func(stream.Current).ConfigureAwait(false);
-            }
-            catch (RpcException exc) when (exc.StatusCode == StatusCode.Cancelled)
-            {
-                await func(null).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                await func(null).ConfigureAwait(false);
-            }
-        }
+            => await _client.StopAsync(Empty, cancellationToken: cancellationToken);
     }
 }
