@@ -1,0 +1,31 @@
+FROM alpine:latest AS build-env
+
+# Setup build environment
+WORKDIR /
+RUN apk add --update autoconf automake build-base curl git libtool pkgconfig
+
+# Fetch all GRPC stuff from GitHub
+RUN git clone -b $(curl -L https://grpc.io/release) https://github.com/grpc/grpc
+WORKDIR /grpc
+RUN git submodule update --init
+
+# Build GRPC and PROTOBUF
+RUN make install
+WORKDIR /grpc/third_party/protobuf
+RUN make install
+
+# Copy the application
+WORKDIR /app
+COPY Makefile .
+COPY Interface/*.proto .
+COPY CcClient/*.cc .
+
+# Build the application
+RUN make
+
+# Create the client image
+FROM alpine:latest as client
+RUN apk add --update libstdc++ musl
+WORKDIR /app
+COPY --from=build-env /app/CcClient .
+ENTRYPOINT ["/app/CcClient"]

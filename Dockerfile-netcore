@@ -1,0 +1,26 @@
+FROM microsoft/dotnet:sdk AS build-env
+WORKDIR /app
+
+# Restore projects independant from the source-code to allow better image re-use
+COPY gRPC.sln .
+COPY CsClient/*.csproj ./CsClient/
+COPY CsServer/*.csproj ./CsServer/
+RUN dotnet restore
+
+# Copy source code
+COPY Interface/*.proto ./Interface/
+COPY CsClient/*.cs ./CsClient/
+COPY CsServer/*.cs ./CsServer/
+
+# Pubish output
+RUN dotnet publish -c Release -o out
+
+FROM microsoft/dotnet:runtime as client
+WORKDIR /app
+COPY --from=build-env /app/CsClient/out .
+ENTRYPOINT ["dotnet", "CsClient.dll"]
+
+FROM microsoft/dotnet:runtime as server
+WORKDIR /app
+COPY --from=build-env /app/CsServer/out .
+ENTRYPOINT ["dotnet", "CsServer.dll"]

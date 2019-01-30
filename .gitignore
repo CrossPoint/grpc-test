@@ -1,0 +1,7 @@
+# Ignore Visual Studio IDE files
+.vs/
+.vscode/
+
+# Build results
+bin/
+obj/
